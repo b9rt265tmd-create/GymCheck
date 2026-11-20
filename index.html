@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building Gym — Live Check-In</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased">
+  <div class="max-w-md mx-auto px-4 py-6 space-y-6">
+    
+    <!-- Header & Live Crowd Status -->
+    <header class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-slate-400">Building Fitness Room</p>
+          <h1 class="text-2xl font-bold mt-0.5">Live Gym Status</h1>
+        </div>
+        <span id="crowdBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          Quiet
+        </span>
+      </div>
+
+      <div class="mt-4 flex items-baseline gap-2">
+        <span id="activeCount" class="text-4xl font-extrabold text-white">0</span>
+        <span class="text-sm text-slate-400">neighbors training right now</span>
+      </div>
+    </header>
+
+    <!-- Check-In / Active Session Card -->
+    <section id="checkInBox" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Your Session</h2>
+
+      <div id="formState" class="space-y-3">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Display Name (optional)</label>
+          <input id="nameInput" type="text" maxlength="20" placeholder="e.g., Maya or Anonymous"
+            class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Focus Area</label>
+            <select id="zoneInput" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm">
+              <option value="Weights">🏋️ Weights</option>
+              <option value="Cardio">🏃 Cardio</option>
+              <option value="Full Body">⚡ Full Body</option>
+              <option value="Mat / Stretch">🧘 Mat / Stretch</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Duration</label>
+            <select id="durationInput" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm">
+              <option value="30">30 mins</option>
+              <option value="45" selected>45 mins</option>
+              <option value="60">60 mins</option>
+              <option value="90">90 mins</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="flex items-center gap-2.5 text-sm text-slate-300 pt-1 cursor-pointer">
+          <input id="vibeInput" type="checkbox" class="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0" />
+          <span>Open to spot / say hi</span>
+        </label>
+
+        <button id="checkInBtn"
+          class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] transition text-white font-semibold py-3 rounded-xl shadow-md">
+          Check In Now
+        </button>
+      </div>
+
+      <!-- Shown while user is checked in -->
+      <div id="activeState" class="hidden space-y-3">
+        <div class="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-between">
+          <div>
+            <p class="text-sm font-semibold text-indigo-200">You are checked in</p>
+            <p id="myTimerText" class="text-xs text-indigo-300/80 mt-0.5">Auto-checkout in 45m</p>
+          </div>
+          <span class="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <button id="extendBtn"
+            class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium py-2.5 rounded-xl border border-slate-700">
+            +15 Mins
+          </button>
+          <button id="checkOutBtn"
+            class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-sm font-semibold py-2.5 rounded-xl border border-rose-500/30">
+            Finish & Leave
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live List of Neighbors -->
+    <section class="space-y-3">
+      <div class="flex items-center justify-between px-1">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Training Now</h2>
+        <span class="text-xs text-slate-500">Auto-updates live</span>
+      </div>
+      <div id="peopleList" class="space-y-2.5"></div>
+    </section>
+
+  </div>
+
+  <!-- Firebase SDK (Modular v10) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import {
+      getFirestore, collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    // 1. PASTE YOUR FIREBASE CONFIG HERE
+    const firebaseConfig = { apiKey: "AIzaSyA6hLMCJzvk3G4Wgtwtv1CUS3NdcZH4g7Q",
+  authDomain: "gymcheck-471ac.firebaseapp.com",
+  projectId: "gymcheck-471ac",
+  storageBucket: "gymcheck-471ac.firebasestorage.app",
+  messagingSenderId: "315767372978",
+  appId: "1:315767372978:web:99b696bdababadd5285dab",
+  measurementId: "G-M4KNYVR7J9"
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const checkinsRef = collection(db, "gym_checkins");
+
+    // Persistent device ID & saved nickname
+    let deviceId = localStorage.getItem("gym_device_id");
+    if (!deviceId) {
+      deviceId = crypto.randomUUID();
+      localStorage.setItem("gym_device_id", deviceId);
+    }
+
+    const nameInput = document.getElementById("nameInput");
+    nameInput.value = localStorage.getItem("gym_nickname") || "";
+
+    const formState = document.getElementById("formState");
+    const activeState = document.getElementById("activeState");
+    const peopleList = document.getElementById("peopleList");
+    const activeCount = document.getElementById("activeCount");
+    const crowdBadge = document.getElementById("crowdBadge");
+    const myTimerText = document.getElementById("myTimerText");
+
+    let latestDocs = [];
+
+    function updateCrowdUI(count) {
+      activeCount.textContent = count;
+      if (count === 0) {
+        crowdBadge.textContent = "Empty & Open";
+        crowdBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+      } else if (count <= 3) {
+        crowdBadge.textContent = "Quiet";
+        crowdBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+      } else if (count <= 6) {
+        crowdBadge.textContent = "Moderate";
+        crowdBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30";
+      } else {
+        crowdBadge.textContent = "Busy";
+        crowdBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30";
+      }
+    }
+
+    function render() {
+      const now = Date.now();
+      const active = [];
+
+      for (const item of latestDocs) {
+        if (item.expiresAt <= now) {
+          // Clean up expired sessions automatically
+          deleteDoc(doc(db, "gym_checkins", item.id)).catch(() => {});
+        } else {
+          active.push(item);
+        }
+      }
+
+      updateCrowdUI(active.length);
+
+      const mySession = active.find((p) => p.id === deviceId);
+      if (mySession) {
+        formState.classList.add("hidden");
+        activeState.classList.remove("hidden");
+        const minsLeft = Math.max(1, Math.ceil((mySession.expiresAt - now) / 60000));
+        myTimerText.textContent = `Auto-checkout in ~${minsLeft} min (${mySession.zone})`;
+      } else {
+        formState.classList.remove("hidden");
+        activeState.classList.add("hidden");
+      }
+
+      if (active.length === 0) {
+        peopleList.innerHTML = `
+          <div class="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-6 text-center text-sm text-slate-500">
+            Nobody checked in right now — you have the gym to yourself.
+          </div>`;
+        return;
+      }
+
+      peopleList.innerHTML = active
+        .sort((a, b) => b.checkedInAt - a.checkedInAt)
+        .map((person) => {
+          const minsLeft = Math.max(1, Math.ceil((person.expiresAt - now) / 60000));
+          const isMe = person.id === deviceId;
+          return `
+            <div class="bg-slate-900 border ${isMe ? "border-indigo-500/40" : "border-slate-800"} rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-semibold text-sm text-white">${escapeHtml(person.name)}</span>
+                  ${isMe ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">You</span>' : ""}
+                  ${person.openToChat ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">Open to spot</span>' : ""}
+                </div>
+                <p class="text-xs text-slate-400 mt-1">${escapeHtml(person.zone)}</p>
+              </div>
+              <span class="text-xs font-medium text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg">
+                ~${minsLeft}m left
+              </span>
+            </div>`;
+        })
+        .join("");
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (m) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[m]));
+    }
+
+    // Listen to live database updates
+    onSnapshot(checkinsRef, (snapshot) => {
+      latestDocs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      render();
+    });
+
+    // Refresh countdown timers every 30 seconds
+    setInterval(render, 30000);
+
+    // Actions
+    document.getElementById("checkInBtn").addEventListener("click", async () => {
+      const rawName = nameInput.value.trim();
+      const displayName = rawName || "Anonymous Neighbor";
+      localStorage.setItem("gym_nickname", rawName);
+
+      const zone = document.getElementById("zoneInput").value;
+      const mins = Number(document.getElementById("durationInput").value);
+      const openToChat = document.getElementById("vibeInput").checked;
+      const now = Date.now();
+
+      await setDoc(doc(db, "gym_checkins", deviceId), {
+        name: displayName,
+        zone,
+        openToChat,
+        checkedInAt: now,
+        expiresAt: now + mins * 60000
+      });
+    });
+
+    document.getElementById("extendBtn").addEventListener("click", async () => {
+      const mySession = latestDocs.find((p) => p.id === deviceId);
+      if (!mySession) return;
+      await updateDoc(doc(db, "gym_checkins", deviceId), {
+        expiresAt: mySession.expiresAt + 15 * 60000
+      });
+    });
+
+    document.getElementById("checkOutBtn").addEventListener("click", async () => {
+      await deleteDoc(doc(db, "gym_checkins", deviceId));
+    });
+  </script>
+</body>
+</html>
