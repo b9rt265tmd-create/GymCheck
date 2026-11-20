@@ -241,6 +241,7 @@
 
     // Actions
     document.getElementById("checkInBtn").addEventListener("click", async () => {
+      alert("Button clicked!");
       const rawName = nameInput.value.trim();
       const displayName = rawName || "Anonymous Neighbor";
       localStorage.setItem("gym_nickname", rawName);
