@@ -250,13 +250,17 @@
       const openToChat = document.getElementById("vibeInput").checked;
       const now = Date.now();
 
-      await setDoc(doc(db, "gym_checkins", deviceId), {
-        name: displayName,
-        zone,
-        openToChat,
-        checkedInAt: now,
-        expiresAt: now + mins * 60000
-      });
+      try {
+     await setDoc(doc(db, "gym_checkins", deviceId), {
+       name: displayName,
+       zone,
+       openToChat,
+       checkedInAt: now,
+       expiresAt: now + mins * 60000
+     });
+   } catch (err) {
+     alert("Firebase error: " + err.message);
+   }
     });
 
     document.getElementById("extendBtn").addEventListener("click", async () => {
